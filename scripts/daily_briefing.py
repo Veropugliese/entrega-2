@@ -202,8 +202,8 @@ def render_text(briefing: dict[str, Any]) -> str:
 
 
 def send_email(briefing: dict[str, Any], attachment: Path) -> None:
-    # Emisor deliberadamente sencillo: una cuenta Outlook/Hotmail y su
-    # contraseña de aplicación. No hay proveedores ni configuración adicional.
+    # Gmail no admite la contraseña normal de la cuenta por SMTP. EMAIL_PASSWORD
+    # debe contener una contraseña de aplicación generada en la cuenta de Google.
     username = env("EMAIL_USERNAME", required=True)
     password = env("EMAIL_PASSWORD", required=True)
     recipient = env("EMAIL_TO", required=True)
@@ -222,7 +222,7 @@ def send_email(briefing: dict[str, Any], attachment: Path) -> None:
     )
 
     context = ssl.create_default_context()
-    with smtplib.SMTP("smtp-mail.outlook.com", 587, timeout=60) as server:
+    with smtplib.SMTP("smtp.gmail.com", 587, timeout=60) as server:
         server.ehlo()
         server.starttls(context=context)
         server.ehlo()
