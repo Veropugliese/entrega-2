@@ -57,7 +57,6 @@ Las tres corridas de `ejemplos/` (incluida la real) se generaron con la v1, **an
 - El Agente Global (semanal, geopolítica/mercados/IA/tecnología) queda completamente afuera de esta entrega, tal como se acordó.
 
 ## Qué aprendí del contrato
-*(Nota: esta sección la tenés que completar/ajustar vos con tu propia reflexión — dejo un borrador a partir de lo charlado, para que lo edites.)*
 
 Lo que más me sirvió de este trabajo fue justamente el momento incómodo: escribir un contrato que parecía completo (rol, contexto, restricciones, formato, todo prolijo) y encontrarle huecos reales recién cuando lo corrí de verdad. Un prompt puede leerse "completo" y aun así no cubrir situaciones que solo aparecen con datos reales — como dos fuentes que se contradicen, o un tema que circula sin fuente propia. Eso me hizo entender que un contrato de agente no se termina de escribir en el escritorio: se termina de escribir corriéndolo y viendo qué decisión tuve que tomar "a criterio" sin que el contrato me lo dijera. Esa decisión improvisada es exactamente lo que hay que convertir en regla escrita.
 
