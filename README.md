@@ -66,3 +66,9 @@ También entendí que la parte más difícil de "darle un contrato" a un agente 
 - Armar el mismo tipo de contrato para el Agente Global — Weekly Intelligence (geopolítica, economía mundial, mercados, IA, tecnología), reutilizando esta misma estructura de archivos.
 - Conectar el contrato a un pipeline real (búsqueda, normalización, deduplicación, scoring) como el descripto en el boceto original.
 - Agregar un renderer que convierta el JSON de salida a Markdown/HTML para lectura humana, sin tocar el contrato del agente (separación entre generación de datos y presentación).
+
+## Automatización experimental (rama de iteración)
+
+La evolución implementa un primer pipeline ejecutable: GitHub Actions llama a OpenAI Responses API con búsqueda web, usa este contrato para generar el JSON diario, valida su estructura, crea un correo HTML y lo envía por SMTP. También conserva el JSON como artefacto de la ejecución.
+
+La configuración manual, los secretos necesarios, la hora programable y el procedimiento de prueba están documentados en [`CONFIGURACION_GITHUB_ACTIONS.md`](CONFIGURACION_GITHUB_ACTIONS.md). Ninguna clave ni dirección de correo se guarda en el código.
