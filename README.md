@@ -9,6 +9,7 @@ Archivos de esta entrega:
 - [`system_prompt.md`](system_prompt.md) — identidad, contexto, pipeline de decisión, restricciones y el schema JSON de salida.
 - [`user_prompt.md`](user_prompt.md) — la plantilla del pedido diario (fecha, ventana temporal, fuentes disponibles o material pegado).
 - [`ejemplos/corrida_2026-08-20.json`](ejemplos/corrida_2026-08-20.json) y [`ejemplos/corrida_2026-08-21.json`](ejemplos/corrida_2026-08-21.json) — dos corridas ficticias con el mismo schema, para mostrar en concreto qué significa "comparable entre corridas".
+- [`ejemplos/corrida_real_2026-08-21.json`](ejemplos/corrida_real_2026-08-21.json) — una corrida real: se ejecutó el contrato con búsqueda web real (no datos inventados) para el 21/08/2026, siguiendo el mismo pipeline (buscar → descartar → deduplicar → clasificar → puntuar → generar). Prueba que el contrato funciona con noticias reales y mismo schema.
 
 ## Cómo se lo pedí
 1. Pegué un boceto grande (ya trabajado con otra IA) de un sistema de dos agentes de noticias (Argentina diario + Global semanal), con arquitectura de software completa, y al final agregué la consigna real de la materia: elegir una tarea recurrente y escribir su contrato (system + user prompt) cubriendo rol, contexto, tarea, restricciones, formato y ejemplos, con salida estructurada y comparable entre corridas.
@@ -23,10 +24,10 @@ Archivos de esta entrega:
 - La plantilla de `user_prompt.md` contempla dos escenarios reales de uso: con herramientas de búsqueda activas, o pegando manualmente el material recolectado (útil si se prueba el contrato en un chat sin acceso a internet).
 
 ## Qué falta o qué falló
-- Este contrato **no está conectado a fuentes reales**: los dos ejemplos de salida son ficticios y están marcados como tales (`"aviso"` en cada JSON). No se hizo ninguna búsqueda real ni se llamó a ningún proveedor de noticias o de IA.
-- No se implementó el pipeline de software del boceto original (proveedores, deduplicación real, scoring, etc.) — esta entrega es solo el contrato de prompt, pensado para poder enchufarse a ese pipeline más adelante sin cambios.
+- Los dos primeros ejemplos de salida (`corrida_2026-08-20.json`, `corrida_2026-08-21.json`) son ficticios y están marcados como tales (`"aviso"` en cada JSON) — sirven solo para mostrar el schema.
+- El tercer ejemplo (`corrida_real_2026-08-21.json`) sí se generó ejecutando el contrato con búsqueda web real. Ahí se ve el comportamiento agéntico funcionando con datos de verdad: descartó una noticia de Tucumán por estar fuera de la ventana de 24-36h, agrupó 4 medios que cubrían la misma marcha como un solo evento, y no incluyó ninguna noticia de Santiago del Estero porque lo único que encontró ese día fue clima y deportes (sin forzar contenido).
+- No se implementó el pipeline de software del boceto original (proveedores, deduplicación automática, scoring programático, etc.) — esta entrega es el contrato de prompt; la corrida real de arriba se hizo a mano en una sesión de chat con herramientas de búsqueda, no con un programa corriendo solo.
 - El Agente Global (semanal, geopolítica/mercados/IA/tecnología) queda completamente afuera de esta entrega, tal como se acordó.
-- No se probó el contrato corriéndolo de verdad contra un LLM con acceso a búsqueda — quedaría como siguiente paso natural antes de confiar en el formato en producción.
 
 ## Qué aprendí
 *(Nota: esta sección la tenés que completar/ajustar vos con tu propia reflexión — dejo un borrador a partir de lo charlado, para que lo edites.)*
