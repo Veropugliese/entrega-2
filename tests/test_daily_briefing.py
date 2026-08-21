@@ -1,4 +1,6 @@
 import importlib.util
+import io
+import json
 import os
 import tempfile
 import unittest
@@ -27,6 +29,56 @@ class DailyBriefingTests(unittest.TestCase):
     def test_validate_rejects_missing_schema(self):
         with self.assertRaises(RuntimeError):
             daily.validate_briefing({"noticias": []})
+
+    def test_extracts_gemini_text(self):
+        body = {
+            "candidates": [
+                {"content": {"parts": [{"text": '{"noticias": []}'}]}}
+            ]
+        }
+        self.assertEqual(daily.extract_output_text(body), '{"noticias": []}')
+
+    def test_detects_google_search_grounding(self):
+        body = {
+            "candidates": [
+                {"groundingMetadata": {"webSearchQueries": ["noticias Argentina hoy"]}}
+            ]
+        }
+        self.assertTrue(daily.used_google_search(body))
+        self.assertFalse(daily.used_google_search({"candidates": []}))
+
+    def test_request_briefing_uses_gemini_and_google_search(self):
+        now = datetime(2026, 8, 21, 8, 0, tzinfo=ZoneInfo("America/Argentina/Buenos_Aires"))
+        briefing = {
+            "agente": "Argentina Daily Intelligence",
+            "fecha_briefing": "2026-08-21",
+            "version_contrato": "v3",
+            "metadata_corrida": {},
+            "resumen_ejecutivo": "Resumen",
+            "noticias": [],
+        }
+        response_body = {
+            "candidates": [
+                {
+                    "content": {"parts": [{"text": json.dumps(briefing)}]},
+                    "groundingMetadata": {"webSearchQueries": ["noticias Argentina hoy"]},
+                }
+            ]
+        }
+        response = unittest.mock.MagicMock()
+        response.__enter__.return_value = io.BytesIO(json.dumps(response_body).encode("utf-8"))
+        variables = {"GEMINI_API_KEY": "test-key", "GEMINI_MODEL": "gemini-2.5-flash"}
+
+        with patch.dict(os.environ, variables), patch.object(
+            daily.urllib.request, "urlopen", return_value=response
+        ) as urlopen:
+            self.assertEqual(daily.request_briefing(now), briefing)
+
+        request = urlopen.call_args.args[0]
+        self.assertIn("gemini-2.5-flash:generateContent", request.full_url)
+        self.assertEqual(request.get_header("X-goog-api-key"), "test-key")
+        payload = json.loads(request.data)
+        self.assertEqual(payload["tools"], [{"googleSearch": {}}])
 
     def test_send_email_uses_gmail_smtp(self):
         briefing = {"fecha_briefing": "2026-08-21", "noticias": []}

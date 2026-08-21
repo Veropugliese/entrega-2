@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Genera el briefing con OpenAI Responses API y opcionalmente lo envía por SMTP."""
+"""Genera el briefing con Gemini y opcionalmente lo envía por SMTP."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import smtplib
 import ssl
 import sys
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime
 from email.message import EmailMessage
@@ -71,21 +72,26 @@ def build_user_prompt(now: datetime) -> str:
 
 
 def request_briefing(now: datetime) -> dict[str, Any]:
-    api_key = env("OPENAI_API_KEY", required=True)
+    api_key = env("GEMINI_API_KEY", required=True)
+    model = env("GEMINI_MODEL", "gemini-2.5-flash")
     system_prompt = (ROOT / "system_prompt.md").read_text(encoding="utf-8")
     payload = {
-        "model": env("OPENAI_MODEL", "gpt-5.4-mini"),
-        "instructions": system_prompt,
-        "input": build_user_prompt(now),
-        "tools": [{"type": "web_search"}],
-        "tool_choice": "required",
-        "store": False,
+        "systemInstruction": {"parts": [{"text": system_prompt}]},
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": build_user_prompt(now)}],
+            }
+        ],
+        "tools": [{"googleSearch": {}}],
+        "generationConfig": {"temperature": 0.2},
     }
+    encoded_model = urllib.parse.quote(model, safe="-._")
     request = urllib.request.Request(
-        "https://api.openai.com/v1/responses",
+        f"https://generativelanguage.googleapis.com/v1beta/models/{encoded_model}:generateContent",
         data=json.dumps(payload).encode("utf-8"),
         headers={
-            "Authorization": f"Bearer {api_key}",
+            "x-goog-api-key": api_key,
             "Content-Type": "application/json",
         },
         method="POST",
@@ -95,13 +101,15 @@ def request_briefing(now: datetime) -> dict[str, Any]:
             body = json.load(response)
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"OpenAI API respondió HTTP {exc.code}: {detail}") from exc
+        raise RuntimeError(f"Gemini API respondió HTTP {exc.code}: {detail}") from exc
     except urllib.error.URLError as exc:
-        raise RuntimeError(f"No se pudo conectar con OpenAI API: {exc.reason}") from exc
+        raise RuntimeError(f"No se pudo conectar con Gemini API: {exc.reason}") from exc
 
-    output_text = body.get("output_text") or extract_output_text(body)
+    if not used_google_search(body):
+        raise RuntimeError("Gemini no utilizó Google Search; se descartó el briefing desactualizado")
+    output_text = extract_output_text(body)
     if not output_text:
-        raise RuntimeError("OpenAI API no devolvió texto en la respuesta")
+        raise RuntimeError("Gemini API no devolvió texto en la respuesta")
     try:
         briefing = json.loads(strip_json_fence(output_text))
     except json.JSONDecodeError as exc:
@@ -112,13 +120,18 @@ def request_briefing(now: datetime) -> dict[str, Any]:
 
 def extract_output_text(body: dict[str, Any]) -> str:
     chunks: list[str] = []
-    for item in body.get("output", []):
-        if item.get("type") != "message":
-            continue
-        for content in item.get("content", []):
-            if content.get("type") == "output_text" and content.get("text"):
-                chunks.append(content["text"])
+    for candidate in body.get("candidates", []):
+        for part in candidate.get("content", {}).get("parts", []):
+            if part.get("text") and not part.get("thought"):
+                chunks.append(part["text"])
     return "\n".join(chunks)
+
+
+def used_google_search(body: dict[str, Any]) -> bool:
+    return any(
+        candidate.get("groundingMetadata", {}).get("webSearchQueries")
+        for candidate in body.get("candidates", [])
+    )
 
 
 def strip_json_fence(text: str) -> str:
