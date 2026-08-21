@@ -6,10 +6,11 @@ El contrato completo (system prompt + user prompt) para que un agente de IA gene
 La consigna pedía que la salida fuera estructurada y comparable entre corridas, así que el formato por defecto es un **JSON con schema fijo** (mismas claves todos los días), no markdown libre. Además de las noticias, el JSON expone las decisiones intermedias del agente: qué fuentes falló, qué se descartó y por qué, y qué duplicados se agruparon — para que quede visible que hay un proceso de evaluación, no solo redacción.
 
 Archivos de esta entrega:
-- [`system_prompt.md`](system_prompt.md) — identidad, contexto, pipeline de decisión, restricciones y el schema JSON de salida.
+- [`system_prompt.md`](system_prompt.md) — identidad, contexto, pipeline de decisión, restricciones y el schema JSON de salida. Es la **v3**, la versión vigente, con las dos iteraciones ya aplicadas.
 - [`user_prompt.md`](user_prompt.md) — la plantilla del pedido diario (fecha, ventana temporal, fuentes disponibles o material pegado).
 - [`ejemplos/corrida_2026-08-20.json`](ejemplos/corrida_2026-08-20.json) y [`ejemplos/corrida_2026-08-21.json`](ejemplos/corrida_2026-08-21.json) — dos corridas ficticias con el mismo schema, para mostrar en concreto qué significa "comparable entre corridas".
-- [`ejemplos/corrida_real_2026-08-21.json`](ejemplos/corrida_real_2026-08-21.json) — una corrida real: se ejecutó el contrato con búsqueda web real (no datos inventados) para el 21/08/2026, siguiendo el mismo pipeline (buscar → descartar → deduplicar → clasificar → puntuar → generar). Prueba que el contrato funciona con noticias reales y mismo schema.
+- [`ejemplos/corrida_real_2026-08-21.json`](ejemplos/corrida_real_2026-08-21.json) — una corrida real: se ejecutó el contrato con búsqueda web real (no datos inventados) para el 21/08/2026, siguiendo el mismo pipeline (buscar → descartar → deduplicar → clasificar → puntuar → generar). Prueba que el contrato funciona con noticias reales y mismo schema. Las tres corridas de `ejemplos/` se generaron con la **v1** (antes de iterar) — ver la sección "Iteraciones" abajo.
+- [`iteraciones/system_prompt_v1.md`](iteraciones/system_prompt_v1.md) y [`iteraciones/system_prompt_v2.md`](iteraciones/system_prompt_v2.md) — versiones anteriores del contrato, conservadas para poder comparar el antes/después de cada iteración.
 
 ## Cómo se lo pedí
 1. Pegué un boceto grande (ya trabajado con otra IA) de un sistema de dos agentes de noticias (Argentina diario + Global semanal), con arquitectura de software completa, y al final agregué la consigna real de la materia: elegir una tarea recurrente y escribir su contrato (system + user prompt) cubriendo rol, contexto, tarea, restricciones, formato y ejemplos, con salida estructurada y comparable entre corridas.
@@ -23,16 +24,44 @@ Archivos de esta entrega:
 - Cubre las reglas específicas del boceto original que tenían sentido para el contrato: cobertura obligatoria de Córdoba/Tucumán/Santiago del Estero sin forzar contenido si no hay novedades, distinción hecho/declaración/análisis/opinión/rumor, URL directa al artículo (nunca la home), y continuidad si una fuente falla.
 - La plantilla de `user_prompt.md` contempla dos escenarios reales de uso: con herramientas de búsqueda activas, o pegando manualmente el material recolectado (útil si se prueba el contrato en un chat sin acceso a internet).
 
+## Iteraciones
+
+El contrato se probó de verdad (corrida real con búsqueda web, `ejemplos/corrida_real_2026-08-21.json`) antes de darlo por terminado. Esa prueba mostró dos problemas concretos, no hipotéticos, que dispararon dos iteraciones sobre el `system_prompt.md`.
+
+### Iteración 1 — cifras contradictorias entre fuentes
+
+**Antes (v1, [`iteraciones/system_prompt_v1.md`](iteraciones/system_prompt_v1.md)):** la sección de Restricciones decía que había que contrastar noticias controvertidas con más de una fuente, pero no decía qué hacer si dos fuentes daban **datos numéricos distintos** para el mismo hecho.
+
+**El problema, en la corrida real:** al buscar sobre el riesgo país del 21/08, una fuente (artículo de Infobae con fecha y link específico) decía que había bajado a 506 puntos; un resumen agregado de otra búsqueda decía que había superado los 530 puntos, sin un artículo propio verificable detrás de esa segunda cifra. El contrato v1 no me decía cómo resolver esto — tuve que improvisar el criterio en el momento (usé la cifra con fuente específica y descarté la otra).
+
+**El cambio:** agregué una regla explícita en Restricciones: priorizar la fuente con artículo específico y fecha verificable por sobre afirmaciones agregadas sin fuente clara; y si dos cifras son igualmente verificables pero contradictorias, dejar constancia de la discrepancia en vez de elegir una en silencio.
+
+**Después (v2, [`iteraciones/system_prompt_v2.md`](iteraciones/system_prompt_v2.md)):** la decisión que antes tomaba yo "a criterio" ahora está escrita en el contrato, así que la próxima persona (o modelo) que lo use no tiene que reinventarla.
+
+### Iteración 2 — temas sin fuente propia verificable
+
+**Antes (v2):** el paso 6 del pipeline ("Descartar") decía que había que sacar lo irrelevante o lo que fuera puro entretenimiento político, pero no mencionaba el caso de un tema que aparece **mencionado** dentro de la cobertura de otro artículo, sin tener él mismo un artículo propio con URL verificable.
+
+**El problema, en la corrida real:** encontré dos temas relevantes (declaraciones sobre el futuro de la producción de carne y leche en un congreso agropecuario, e interés de mineras en litio) que solo aparecían citados dentro de resúmenes agregados de búsqueda, sin que pudiera encontrar el artículo específico detrás. Los descarté por precaución, pero el contrato no me daba una regla explícita para eso — otra persona podría haber decidido incluirlos igual, citando la fuente agregada como si fuera el artículo original.
+
+**El cambio:** sumé al paso 6 del pipeline: descartar cualquier tema sin un artículo propio con URL verificable, aunque haya aparecido mencionado dentro de otro artículo.
+
+**Después (v3, [`system_prompt.md`](system_prompt.md), la versión vigente):** el criterio de "sin fuente propia verificable = se descarta" queda como regla explícita del pipeline, no como algo que dependía de mi buen criterio ese día.
+
+Las tres corridas de `ejemplos/` (incluida la real) se generaron con la v1, **antes** de estas dos iteraciones — es decir, son evidencia del comportamiento que expuso los problemas, no del contrato ya corregido. No se volvió a correr una cuarta vez con la v3 para mantener la entrega acotada, pero el cambio queda documentado con el antes/cambio/después de cada iteración arriba.
+
 ## Qué falta o qué falló
 - Los dos primeros ejemplos de salida (`corrida_2026-08-20.json`, `corrida_2026-08-21.json`) son ficticios y están marcados como tales (`"aviso"` en cada JSON) — sirven solo para mostrar el schema.
 - El tercer ejemplo (`corrida_real_2026-08-21.json`) sí se generó ejecutando el contrato con búsqueda web real. Ahí se ve el comportamiento agéntico funcionando con datos de verdad: descartó una noticia de Tucumán por estar fuera de la ventana de 24-36h, agrupó 4 medios que cubrían la misma marcha como un solo evento, y no incluyó ninguna noticia de Santiago del Estero porque lo único que encontró ese día fue clima y deportes (sin forzar contenido).
 - No se implementó el pipeline de software del boceto original (proveedores, deduplicación automática, scoring programático, etc.) — esta entrega es el contrato de prompt; la corrida real de arriba se hizo a mano en una sesión de chat con herramientas de búsqueda, no con un programa corriendo solo.
 - El Agente Global (semanal, geopolítica/mercados/IA/tecnología) queda completamente afuera de esta entrega, tal como se acordó.
 
-## Qué aprendí
+## Qué aprendí del contrato
 *(Nota: esta sección la tenés que completar/ajustar vos con tu propia reflexión — dejo un borrador a partir de lo charlado, para que lo edites.)*
 
-Entendí que la parte más difícil de "darle un contrato" a un agente no es escribir el rol o el tono, sino decidir qué decisiones intermedias tienen que quedar visibles en la salida — si el formato solo mostrara las noticias finales, no se podría distinguir un agente que realmente evalúa y descarta de uno que simplemente redacta lo primero que encuentra. También aprendí que "salida comparable entre corridas" es un requisito de diseño, no de redacción: obliga a fijar un schema (mismas claves siempre, aunque estén vacías) en vez de dejar que el formato varíe según lo que haya para contar ese día.
+Lo que más me sirvió de este trabajo fue justamente el momento incómodo: escribir un contrato que parecía completo (rol, contexto, restricciones, formato, todo prolijo) y encontrarle huecos reales recién cuando lo corrí de verdad. Un prompt puede leerse "completo" y aun así no cubrir situaciones que solo aparecen con datos reales — como dos fuentes que se contradicen, o un tema que circula sin fuente propia. Eso me hizo entender que un contrato de agente no se termina de escribir en el escritorio: se termina de escribir corriéndolo y viendo qué decisión tuve que tomar "a criterio" sin que el contrato me lo dijera. Esa decisión improvisada es exactamente lo que hay que convertir en regla escrita.
+
+También entendí que la parte más difícil de "darle un contrato" a un agente no es escribir el rol o el tono, sino decidir qué decisiones intermedias tienen que quedar visibles en la salida — si el formato solo mostrara las noticias finales, no se podría distinguir un agente que realmente evalúa y descarta de uno que simplemente redacta lo primero que encuentra. Y que "salida comparable entre corridas" es un requisito de diseño, no de redacción: obliga a fijar un schema (mismas claves siempre, aunque estén vacías) en vez de dejar que el formato varíe según lo que haya para contar ese día.
 
 ## Posible evolución futura
 - Armar el mismo tipo de contrato para el Agente Global — Weekly Intelligence (geopolítica, economía mundial, mercados, IA, tecnología), reutilizando esta misma estructura de archivos.
