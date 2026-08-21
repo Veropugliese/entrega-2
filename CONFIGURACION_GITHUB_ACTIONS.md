@@ -8,15 +8,14 @@ El repositorio queda preparado para generar el briefing con OpenAI, buscar notic
 2. En GitHub, abrir **Settings → Secrets and variables → Actions**.
 3. Crear estos **Repository secrets**:
    - `OPENAI_API_KEY`: clave de un proyecto de OpenAI API con facturación habilitada.
-   - `SMTP_USERNAME`: cuenta desde la cual se envía el correo (dirección completa).
-   - `SMTP_PASSWORD`: contraseña de aplicación o credencial SMTP de esa cuenta. Nunca usarla en un archivo del repositorio.
+   - `EMAIL_USERNAME`: cuenta Outlook/Hotmail desde la cual se envía (dirección completa).
+   - `EMAIL_PASSWORD`: contraseña de aplicación de esa cuenta. Nunca usarla en un archivo del repositorio.
    - `EMAIL_TO`: dirección destinataria completa, confirmada y sin espacios.
 4. Crear estas **Repository variables**:
    - `DAILY_SEND_HOUR`: hora local de envío, entero de `0` a `23` (por ejemplo, `8`).
    - `TIME_ZONE`: `America/Argentina/Buenos_Aires`.
    - `OPENAI_MODEL`: `gpt-5.4-mini` (se puede cambiar sin editar código).
    - `WINDOW_HOURS`: `36`.
-   - Opcionales: `SMTP_HOST`, `SMTP_PORT` y `EMAIL_FROM`. Los valores por defecto son `smtp-mail.outlook.com`, `587` y el mismo valor de `SMTP_USERNAME`.
 5. Abrir **Actions → Argentina Daily Intelligence → Run workflow** en `main`.
 6. Hacer primero una prueba con **Enviar el resultado por correo = false**. Descargar y revisar el artefacto JSON.
 7. Repetir la prueba con **Enviar el resultado por correo = true** y confirmar recepción y carpeta de correo no deseado.
@@ -27,7 +26,8 @@ El repositorio queda preparado para generar el briefing con OpenAI, buscar notic
 - El workflow se despierta al minuto 7 de cada hora. El script solo genera y envía cuando esa hora coincide con `DAILY_SEND_HOUR` en `TIME_ZONE`; cambiar la hora no requiere editar YAML.
 - Una ejecución manual ignora `DAILY_SEND_HOUR`, para permitir pruebas en cualquier momento.
 - OpenAI API y la búsqueda web pueden generar consumo facturable. El modelo queda configurable para controlar calidad y costo.
-- Si el proveedor de correo rechaza el login SMTP, hay que habilitar SMTP autenticado o crear una contraseña de aplicación. Esto se hace en la cuenta de correo, no en GitHub.
+- El emisor está preparado directamente para Outlook/Hotmail; no hay que configurar servidor, puerto ni remitente.
+- Si Outlook rechaza el acceso, hay que crear una contraseña de aplicación para la cuenta. Esto se hace en la cuenta de Microsoft, no en GitHub.
 - Los secretos nunca se imprimen ni se almacenan en los artefactos.
 
 ## Diagnóstico rápido
@@ -35,5 +35,5 @@ El repositorio queda preparado para generar el briefing con OpenAI, buscar notic
 - `Falta ... OPENAI_API_KEY`: no se creó el secreto o está vacío.
 - `HTTP 401` de OpenAI: clave inválida o revocada.
 - `HTTP 429` de OpenAI: límite de uso, crédito o facturación.
-- `SMTPAuthenticationError`: usuario/contraseña incorrectos o SMTP autenticado bloqueado.
+- `SMTPAuthenticationError`: `EMAIL_USERNAME` o `EMAIL_PASSWORD` son incorrectos.
 - No se ejecuta diariamente: confirmar que el workflow fue fusionado a `main` y que Actions está habilitado en el repositorio.

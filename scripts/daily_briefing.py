@@ -202,16 +202,15 @@ def render_text(briefing: dict[str, Any]) -> str:
 
 
 def send_email(briefing: dict[str, Any], attachment: Path) -> None:
-    smtp_host = env("SMTP_HOST", "smtp-mail.outlook.com")
-    smtp_port = int(env("SMTP_PORT", "587"))
-    username = env("SMTP_USERNAME", required=True)
-    password = env("SMTP_PASSWORD", required=True)
-    sender = env("EMAIL_FROM", username)
+    # Emisor deliberadamente sencillo: una cuenta Outlook/Hotmail y su
+    # contraseña de aplicación. No hay proveedores ni configuración adicional.
+    username = env("EMAIL_USERNAME", required=True)
+    password = env("EMAIL_PASSWORD", required=True)
     recipient = env("EMAIL_TO", required=True)
 
     message = EmailMessage()
     message["Subject"] = f"Argentina Daily Intelligence — {briefing.get('fecha_briefing', '')}"
-    message["From"] = sender
+    message["From"] = username
     message["To"] = recipient
     message.set_content(render_text(briefing))
     message.add_alternative(render_html(briefing), subtype="html")
@@ -223,7 +222,7 @@ def send_email(briefing: dict[str, Any], attachment: Path) -> None:
     )
 
     context = ssl.create_default_context()
-    with smtplib.SMTP(smtp_host, smtp_port, timeout=60) as server:
+    with smtplib.SMTP("smtp-mail.outlook.com", 587, timeout=60) as server:
         server.ehlo()
         server.starttls(context=context)
         server.ehlo()

@@ -23,10 +23,6 @@ class DailyBriefingTests(unittest.TestCase):
         with patch.dict(os.environ, {"DAILY_SEND_HOUR": "8"}):
             self.assertTrue(daily.scheduled_for_this_hour(now))
 
-    def test_empty_optional_variable_uses_default(self):
-        with patch.dict(os.environ, {"SMTP_HOST": ""}):
-            self.assertEqual(daily.env("SMTP_HOST", "smtp.example.com"), "smtp.example.com")
-
     def test_validate_rejects_missing_schema(self):
         with self.assertRaises(RuntimeError):
             daily.validate_briefing({"noticias": []})
