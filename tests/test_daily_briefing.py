@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import unittest
+import urllib.error
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -79,6 +80,63 @@ class DailyBriefingTests(unittest.TestCase):
         self.assertEqual(request.get_header("X-goog-api-key"), "test-key")
         payload = json.loads(request.data)
         self.assertEqual(payload["tools"], [{"googleSearch": {}}])
+
+    def test_request_briefing_retries_on_transient_gemini_error(self):
+        now = datetime(2026, 8, 21, 8, 0, tzinfo=ZoneInfo("America/Argentina/Buenos_Aires"))
+        briefing = {
+            "agente": "Argentina Daily Intelligence",
+            "fecha_briefing": "2026-08-21",
+            "version_contrato": "v3",
+            "metadata_corrida": {},
+            "resumen_ejecutivo": "Resumen",
+            "noticias": [],
+        }
+        response_body = {
+            "candidates": [
+                {
+                    "content": {"parts": [{"text": json.dumps(briefing)}]},
+                    "groundingMetadata": {"webSearchQueries": ["noticias Argentina hoy"]},
+                }
+            ]
+        }
+        ok_response = unittest.mock.MagicMock()
+        ok_response.__enter__.return_value = io.BytesIO(json.dumps(response_body).encode("utf-8"))
+        overloaded_error = urllib.error.HTTPError(
+            url="https://generativelanguage.googleapis.com",
+            code=503,
+            msg="Service Unavailable",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error": {"message": "overloaded"}}'),
+        )
+        variables = {"GEMINI_API_KEY": "test-key", "GEMINI_MODEL": "gemini-2.5-flash"}
+
+        with patch.dict(os.environ, variables), patch.object(
+            daily.urllib.request, "urlopen", side_effect=[overloaded_error, ok_response]
+        ) as urlopen, patch.object(daily.time, "sleep") as sleep:
+            self.assertEqual(daily.request_briefing(now), briefing)
+
+        self.assertEqual(urlopen.call_count, 2)
+        sleep.assert_called_once()
+
+    def test_request_briefing_does_not_retry_on_client_error(self):
+        now = datetime(2026, 8, 21, 8, 0, tzinfo=ZoneInfo("America/Argentina/Buenos_Aires"))
+        bad_request_error = urllib.error.HTTPError(
+            url="https://generativelanguage.googleapis.com",
+            code=400,
+            msg="Bad Request",
+            hdrs=None,
+            fp=io.BytesIO(b'{"error": {"message": "invalid"}}'),
+        )
+        variables = {"GEMINI_API_KEY": "test-key", "GEMINI_MODEL": "gemini-2.5-flash"}
+
+        with patch.dict(os.environ, variables), patch.object(
+            daily.urllib.request, "urlopen", side_effect=bad_request_error
+        ) as urlopen, patch.object(daily.time, "sleep") as sleep:
+            with self.assertRaises(RuntimeError):
+                daily.request_briefing(now)
+
+        self.assertEqual(urlopen.call_count, 1)
+        sleep.assert_not_called()
 
     def test_send_email_uses_gmail_smtp(self):
         briefing = {"fecha_briefing": "2026-08-21", "noticias": []}

@@ -9,9 +9,10 @@ on:
         type: boolean
         default: false
   schedule:
-    # GitHub cron usa UTC. Se despierta una vez por hora y el script compara
-    # DAILY_SEND_HOUR contra TIME_ZONE, evitando editar el cron por cambios de hora.
-    - cron: "7 * * * *"
+    # GitHub cron usa UTC. Corre una sola vez por día, a las 11:00 UTC = 08:00
+    # en Argentina (UTC-3 fijo, sin horario de verano desde 2009). Si cambiás
+    # DAILY_SEND_HOUR también hay que actualizar esta hora para que coincidan.
+    - cron: "7 11 * * *"
 
 concurrency:
   group: argentina-daily-intelligence
