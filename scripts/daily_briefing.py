@@ -10,6 +10,7 @@ import os
 import smtplib
 import ssl
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -23,6 +24,10 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = ROOT / "output"
 DEFAULT_TIMEZONE = "America/Argentina/Buenos_Aires"
+# Códigos HTTP transitorios de Gemini (sobrecarga, rate limit) ante los que vale la pena reintentar.
+RETRYABLE_HTTP_STATUS = {429, 500, 502, 503, 504}
+MAX_GEMINI_ATTEMPTS = 3
+RETRY_BACKOFF_SECONDS = (20, 60)
 REQUIRED_TOP_LEVEL_KEYS = {
     "agente",
     "fecha_briefing",
@@ -87,23 +92,8 @@ def request_briefing(now: datetime) -> dict[str, Any]:
         "generationConfig": {"temperature": 0.2},
     }
     encoded_model = urllib.parse.quote(model, safe="-._")
-    request = urllib.request.Request(
-        f"https://generativelanguage.googleapis.com/v1beta/models/{encoded_model}:generateContent",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "x-goog-api-key": api_key,
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=600) as response:
-            body = json.load(response)
-    except urllib.error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="replace")
-        raise RuntimeError(f"Gemini API respondió HTTP {exc.code}: {detail}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"No se pudo conectar con Gemini API: {exc.reason}") from exc
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{encoded_model}:generateContent"
+    body = request_briefing_with_retries(url, api_key, payload)
 
     if not used_google_search(body):
         raise RuntimeError("Gemini no utilizó Google Search; se descartó el briefing desactualizado")
@@ -116,6 +106,36 @@ def request_briefing(now: datetime) -> dict[str, Any]:
         raise RuntimeError(f"La salida del agente no es JSON válido: {exc}") from exc
     validate_briefing(briefing)
     return briefing
+
+
+def request_briefing_with_retries(url: str, api_key: str, payload: dict[str, Any]) -> dict[str, Any]:
+    last_error: Exception | None = None
+    for attempt in range(1, MAX_GEMINI_ATTEMPTS + 1):
+        request = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "x-goog-api-key": api_key,
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=180) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            last_error = RuntimeError(f"Gemini API respondió HTTP {exc.code}: {detail}")
+            if exc.code not in RETRYABLE_HTTP_STATUS or attempt == MAX_GEMINI_ATTEMPTS:
+                raise last_error from exc
+        except urllib.error.URLError as exc:
+            last_error = RuntimeError(f"No se pudo conectar con Gemini API: {exc.reason}")
+            if attempt == MAX_GEMINI_ATTEMPTS:
+                raise last_error from exc
+        wait_seconds = RETRY_BACKOFF_SECONDS[min(attempt - 1, len(RETRY_BACKOFF_SECONDS) - 1)]
+        print(f"Intento {attempt}/{MAX_GEMINI_ATTEMPTS} falló ({last_error}); reintentando en {wait_seconds}s...")
+        time.sleep(wait_seconds)
+    raise last_error  # inalcanzable: el loop siempre retorna o lanza antes de llegar acá
 
 
 def extract_output_text(body: dict[str, Any]) -> str:
